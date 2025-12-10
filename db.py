@@ -5,8 +5,8 @@ from storage.sqlite_engine import SQLiteEngine
 
 
 class PensiveDB:
-    def __init__(self, path="pensive.db"):
-        self.storage = SQLiteEngine(path)
+    def __init__(self, path="pensive.db", flush_every: int = 1):
+        self.storage = SQLiteEngine(path, flush_every=flush_every)
 
     def insert(self, collection, data_dict):
         doc_id = self.storage.insert_document(collection, data_dict)
@@ -38,3 +38,6 @@ class PensiveDB:
     def delete(self, doc_id):
         self.storage.delete_document(doc_id)
         return True
+
+    def close(self):
+        self.storage.close()
