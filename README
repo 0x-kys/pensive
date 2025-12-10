@@ -1,0 +1,11 @@
+pensive
+
+A tiny database that stores structured data + unstructured embeddings + can be queried in natural language.
+
+### **Core features**
+
+- Custom file-based storage engine (SQLite hybrid)
+- Embedding index using cosine-sim search
+- Natural-language → structured query translation using a small local LLM
+- Web dashboard using FastAPI + WebSockets for live indexing view
+- Plugins to sync data with local folders
