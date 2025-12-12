@@ -1,21 +1,33 @@
+import numpy as np
+
 from db import PensiveDB
 
 BIG_TEXT = """
-Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec viverra accumsan ante posuere imperdiet. Donec dui enim, blandit interdum pellentesque nec, scelerisque et erat. Donec porttitor sapien nec nisi finibus facilisis. Donec suscipit ante nec eleifend fermentum. Integer bibendum laoreet vulputate. Phasellus sed tristique nunc. Fusce scelerisque mi dui, id scelerisque risus molestie et. Ut aliquam vehicula mi, at lobortis libero viverra non. Integer a accumsan est. In a magna hendrerit, ullamcorper quam nec, vulputate magna. Pellentesque massa ligula, convallis nec metus ut, venenatis interdum sapien. Curabitur luctus ultrices nisi, eu mattis augue interdum placerat. Sed rutrum euismod purus, ut finibus dolor semper eu. Nam cursus velit augue, eget mollis odio ultricies ut. Praesent varius ac ex ac sagittis.
+Artificial intelligence is transforming software development. Modern systems can now generate code, review pull requests, and even suggest architectural improvements. Teams that adopt AI tools report faster development cycles and fewer bugs in production. The challenge, however, is integrating these tools responsibly without creating over-reliance.
 
-Etiam efficitur faucibus leo vel bibendum. Nullam at ante vel augue iaculis tincidunt. Nam volutpat sollicitudin interdum. Ut vel neque nisi. Duis eget ipsum eu risus eleifend efficitur ut ac ligula. Aenean luctus vestibulum odio non rhoncus. Sed tempus, quam vel commodo condimentum, dui magna efficitur elit, eget fermentum lectus leo sed ipsum. Pellentesque tellus nisi, dictum sit amet ante eget, tempor bibendum magna. Maecenas quis elementum ante. Ut sit amet massa pretium, accumsan eros eu, ornare tellus. Duis eu eleifend tellus, in fringilla magna. Aliquam sit amet ex hendrerit, hendrerit ipsum et, tincidunt sem.
+Cooking at home has seen a resurgence as people look for healthier alternatives to fast food. Simple meals like stir-fries, soups, and roasted vegetables require minimal ingredients but deliver strong nutritional value. Many beginners start with basic knife skills and gradually experiment with herbs, spices, and different cuisines.
 
-Fusce augue enim, fringilla at pulvinar rutrum, laoreet eget dui. Proin luctus enim semper finibus tristique. Ut blandit eros sit amet vehicula commodo. Sed dignissim lacinia massa quis molestie. Pellentesque habitant morbi tristique senectus et netus et malesuada fames ac turpis egestas. Nunc et sollicitudin justo. Cras efficitur, purus et tristique dictum, nunc augue pharetra erat, nec tristique sapien ipsum a purus. Proin molestie consectetur ligula, vel dapibus justo volutpat sed. Pellentesque odio purus, efficitur mattis quam sed, rhoncus facilisis quam. Suspendisse nec diam eu lorem dapibus volutpat sit amet vitae mauris.
+Electric vehicles are becoming increasingly popular as battery technology improves and charging networks expand. Companies are pushing for longer ranges and faster charging times. Governments around the world are offering incentives to reduce carbon emissions and accelerate the shift away from fossil fuels.
 
-Maecenas lacinia ante at malesuada eleifend. Aliquam erat volutpat. Cras pulvinar accumsan dui eget varius. Cras et rutrum lectus, sed mollis magna. Curabitur quis commodo metus. Nunc pharetra arcu in turpis mattis, tincidunt eleifend urna blandit. Phasellus rutrum est lacinia mattis rhoncus. Maecenas iaculis quis augue et pretium. Pellentesque suscipit rhoncus ex eu cursus. Aliquam erat volutpat. In feugiat ex vel diam elementum tincidunt id at lacus. Duis eu auctor quam. Nam vitae tristique ex.
+Traveling to new countries exposes people to unfamiliar cultures and perspectives. Exploring local food, music, and traditions helps visitors build a deeper appreciation for diversity. Many travelers also enjoy documenting their journeys through photography and writing.
 
-Cras posuere nisl imperdiet, tempus lectus in, luctus mi. Aenean vestibulum pellentesque risus, at molestie erat consectetur ac. Aliquam erat volutpat. Duis malesuada ipsum semper leo lacinia interdum. Class aptent taciti sociosqu ad litora torquent per conubia nostra, per inceptos himenaeos. Sed vel malesuada tortor. Phasellus mattis turpis nibh, non suscipit arcu venenatis ac. Aenean a metus ut arcu faucibus porttitor. Morbi vitae diam et ante porttitor porttitor id ut velit. Proin non ex maximus eros vehicula efficitur.
+Good mental health requires consistent habits such as regular exercise, proper sleep, social interactions, and mindfulness. Small daily practices like journaling or walking outdoors can significantly reduce stress levels. Experts encourage people to treat mental well-being with the same priority as physical health.
 """
 
 
 def split_paragraphs(text: str):
     """Split into paragraphs based on blank lines."""
     return [p.strip() for p in text.strip().split("\n\n") if p.strip()]
+
+
+def pretty_print_semantic_results(results):
+    print("\nSemantic Search Results:")
+    for i, r in enumerate(results, start=1):
+        print(f"\nResult #{i}")
+        print(f"  ID: {r['id']}")
+        print(f"  Score: {r['score']:.4f}")
+        print(f"  Title: {r['data']['title']}")
+        print(f"  Content (preview): {r['data']['content'][:120]}...")
 
 
 def main():
@@ -39,6 +51,15 @@ def main():
     for doc_id in ids:
         doc = db.get(doc_id)
         print(f"{doc_id} => title: {doc['data']['title']}")
+
+    for doc_id, vec in zip(db.index.ids, db.index.vectors):
+        print(doc_id, np.linalg.norm(vec))
+
+    print("\n--- SEMANTIC SEARCH ---")
+    semantic_search_results = db.search_semantic(
+        collection="notes", query_text="mindful", top_k=3
+    )
+    pretty_print_semantic_results(semantic_search_results)
 
     db.close()
     print("\nDB flushed & closed!")
