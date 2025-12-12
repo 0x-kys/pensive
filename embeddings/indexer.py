@@ -31,6 +31,7 @@ class EmbeddingIndex:
         """
         for doc_id, blob in rows:
             vec = np.frombuffer(blob, dtype=np.float32)
+            vec = vec / np.linalg.norm(vec)
             self.add(doc_id, vec)
 
     def search(self, query_vector, top_k=5):
