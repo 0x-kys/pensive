@@ -1,5 +1,3 @@
-import numpy as np
-
 from db import PensiveDB
 
 BIG_TEXT = """
@@ -16,7 +14,6 @@ Good mental health requires consistent habits such as regular exercise, proper s
 
 
 def split_paragraphs(text: str):
-    """Split into paragraphs based on blank lines."""
     return [p.strip() for p in text.strip().split("\n\n") if p.strip()]
 
 
@@ -31,7 +28,11 @@ def pretty_print_semantic_results(results):
 
 
 def main():
-    db = PensiveDB(path="pensive.db", flush_every=10)
+    db = PensiveDB(
+        path="pensive.db",
+        flush_every=10,
+        index_mode="faiss_flat",  # explicitly test FAISS
+    )
 
     paragraphs = split_paragraphs(BIG_TEXT)
 
@@ -52,14 +53,13 @@ def main():
         doc = db.get(doc_id)
         print(f"{doc_id} => title: {doc['data']['title']}")
 
-    for doc_id, vec in zip(db.index.ids, db.index.vectors):
-        print(doc_id, np.linalg.norm(vec))
-
     print("\n--- SEMANTIC SEARCH ---")
-    semantic_search_results = db.search_semantic(
-        collection="notes", query_text="mindful", top_k=3
+    results = db.search_semantic(
+        collection="notes",
+        query_text="mindfulness and mental health",
+        top_k=3,
     )
-    pretty_print_semantic_results(semantic_search_results)
+    pretty_print_semantic_results(results)
 
     db.close()
     print("\nDB flushed & closed!")

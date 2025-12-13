@@ -106,7 +106,7 @@ class SQLiteEngine:
         )
         self._bump_writes_and_maybe_flush()
 
-    def update_document(self, doc_id, updates: dict):
+    def update_document(self, doc_id, collection, updates: dict):
         row = self.get_document(doc_id)
         if not row:
             return None
@@ -132,6 +132,6 @@ class SQLiteEngine:
         self._bump_writes_and_maybe_flush()
 
     def delete_document(self, doc_id):
-        self.conn.execute("DELETE FROM documents WHERE id = ?", (doc_id))
-        self.conn.execute("DELETE FROM embeddings WHERE id = ?", (doc_id))
+        self.conn.execute("DELETE FROM documents WHERE id = ?", (doc_id,))
+        self.conn.execute("DELETE FROM embeddings WHERE id = ?", (doc_id,))
         self._bump_writes_and_maybe_flush()
