@@ -3,19 +3,31 @@ import numpy as np
 
 class EmbeddingIndex:
     def __init__(self):
-        self.ids = []  # list[str]
-        self.vectors = []  # list[np.ndarray]
+        self.ids = []
+        self.vectors = []
 
     def add(self, doc_id, vector):
+        vector = vector.astype(np.float32)
+        norm = np.linalg.norm(vector)
+        if norm == 0:
+            return
+        vector = vector / norm
+
         self.ids.append(doc_id)
         self.vectors.append(vector)
 
     def update(self, doc_id, vector):
+        vector = vector.astype(np.float32)
+        norm = np.linalg.norm(vector)
+        if norm == 0:
+            return
+        vector = vector / norm
+
         for i, id_ in enumerate(self.ids):
             if id_ == doc_id:
                 self.vectors[i] = vector
                 return
-        # if not found... treat as insert
+
         self.add(doc_id, vector)
 
     def remove(self, doc_id):
@@ -26,30 +38,33 @@ class EmbeddingIndex:
                 return
 
     def build_from_sqlite(self, rows):
-        """
-        rows = [(id, embedding_bytes), ...]
-        """
+        self.ids = []
+        self.vectors = []
+
         for doc_id, blob in rows:
             vec = np.frombuffer(blob, dtype=np.float32)
-            vec = vec / np.linalg.norm(vec)
-            self.add(doc_id, vec)
+            norm = np.linalg.norm(vec)
+            if norm == 0:
+                continue
+            vec = vec / norm
+            self.ids.append(doc_id)
+            self.vectors.append(vec)
 
     def search(self, query_vector, top_k=5):
-        if len(self.ids) == 0:
+        if not self.ids:
             return []
 
-        # convert vectors into 2D numpy array
+        query = query_vector.astype(np.float32)
+        norm = np.linalg.norm(query)
+        if norm == 0:
+            return []
+        query = query / norm
+
         matrix = np.vstack(self.vectors)
-        query = query_vector / np.linalg.norm(query_vector)
-        matrix_norm = matrix / np.linalg.norm(matrix, axis=1, keepdims=True)
 
-        # cosine similarity = dot product of normalized vectors
-        scores = np.dot(matrix_norm, query)
+        # cosine similarity
+        scores = np.dot(matrix, query)
 
-        # top-k results
         top_indices = np.argsort(scores)[-top_k:][::-1]
 
-        score_results = []
-        for idx in top_indices:
-            score_results.append({"id": self.ids[idx], "score": float(scores[idx])})
-        return score_results
+        return [{"id": self.ids[i], "score": float(scores[i])} for i in top_indices]
