@@ -1,3 +1,5 @@
+import json
+
 from embeddings.faiss_index import FaissFlatIndex
 from embeddings.generator import embed
 from embeddings.indexer import EmbeddingIndex
@@ -35,6 +37,72 @@ class PensiveDB:
         parsed = [(row["id"], row["embedding"]) for row in rows]
         if parsed:
             self.index.build_from_sqlite(parsed)
+
+    def _apply_filters(self, collection, filters):
+        """
+        return list of document IDs matching structured filters
+        """
+        rows = self.storage.conn.execute(
+            "SELECT id, data FROM documents WHERE collection = ?", (collection,)
+        ).fetchall()
+
+        def match(doc, f):
+            value = doc.get(f["field"])
+            op = f["op"]
+            target = f["value"]
+
+            if op == "=":
+                return value == target
+            if op == "!=":
+                return value != target
+            if op == ">":
+                return value > target
+            if op == "<":
+                return value < target
+            if op == "in":
+                return any(t.lower() in str(value).lower() for t in target)
+            return False
+
+        matched = []
+        for row in rows:
+            data = json.loads(row["data"])
+            if all(match(data, f) for f in filters):
+                matched.append(row["id"])
+
+        return matched
+
+    def query(self, collection, filters=None, semantic_query=None, top_k=5):
+        """
+        hybrid query (structured filters + semantic ranking)
+        """
+        candidate_ids = None
+
+        if filters:
+            candidate_ids = set(self._apply_filters(collection, filters))
+
+            # valid filters but no matches → return early
+            if not candidate_ids:
+                return []
+
+        if semantic_query:
+            semantic_results = self.search_semantic(
+                collection=collection,
+                query_text=semantic_query,
+                top_k=top_k * 2,
+            )
+
+            if candidate_ids is not None:
+                semantic_results = [
+                    r for r in semantic_results if r["id"] in candidate_ids
+                ]
+
+            return semantic_results[:top_k]
+
+        # structured-only query
+        if candidate_ids is None:
+            return []
+
+        return [self.get(doc_id) for doc_id in candidate_ids]
 
     def search_semantic(self, collection, query_text, top_k=5):
         query_vec = embed(query_text)

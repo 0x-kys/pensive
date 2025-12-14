@@ -1,4 +1,9 @@
+import os
+import sys
+
 from db import PensiveDB
+
+DB_PATH = "pensive.db"
 
 BIG_TEXT = """
 Artificial intelligence is transforming software development. Modern systems can now generate code, review pull requests, and even suggest architectural improvements. Teams that adopt AI tools report faster development cycles and fewer bugs in production. The challenge, however, is integrating these tools responsibly without creating over-reliance.
@@ -27,43 +32,94 @@ def pretty_print_semantic_results(results):
         print(f"  Content (preview): {r['data']['content'][:120]}...")
 
 
-def main():
+def cmd_add():
     db = PensiveDB(
-        path="pensive.db",
+        path=DB_PATH,
         flush_every=10,
-        index_mode="faiss_flat",  # explicitly test FAISS
+        index_mode="faiss_flat",
     )
 
     paragraphs = split_paragraphs(BIG_TEXT)
-
     print(f"Found {len(paragraphs)} paragraphs.")
     print("--- INSERTING NOTES ---")
 
-    ids = []
     for idx, para in enumerate(paragraphs, start=1):
         doc_id = db.insert(
             "notes",
             {"title": f"Paragraph {idx}", "content": para},
         )
-        ids.append(doc_id)
         print(f"Inserted note {idx}: {doc_id}")
 
-    print("\n--- FETCHING INSERTED NOTES ---")
-    for doc_id in ids:
-        doc = db.get(doc_id)
-        print(f"{doc_id} => title: {doc['data']['title']}")
+    db.close()
+    print("\nInsert complete.")
 
-    print("\n--- SEMANTIC SEARCH ---")
+
+def cmd_search():
+    if not os.path.exists(DB_PATH):
+        print("Database not found. Run `add` first.")
+        return
+
+    db = PensiveDB(
+        path=DB_PATH,
+        index_mode="faiss_flat",
+    )
+
     results = db.query(
         "notes",
-        [{"field": "content", "op": "in", "value": ["mental", "health"]}],
-        semantic_query="mindfulness habits",
+        filters=[
+            {
+                "field": "content",
+                "op": "in",
+                "value": [
+                    "mental",
+                    "health",
+                ],
+            }
+        ],
+        semantic_query="mindfulness",
         top_k=3,
     )
+
     pretty_print_semantic_results(results)
 
     db.close()
-    print("\nDB flushed & closed!")
+
+
+def cmd_clean():
+    if os.path.exists(DB_PATH):
+        os.remove(DB_PATH)
+        print("Database deleted.")
+    else:
+        print("No database found.")
+
+
+def print_help():
+    print(
+        """
+Usage:
+  uv run cli.py add     # insert demo documents
+  uv run cli.py search  # run semantic search
+  uv run cli.py clean   # delete database
+"""
+    )
+
+
+def main():
+    if len(sys.argv) < 2:
+        print_help()
+        return
+
+    cmd = sys.argv[1]
+
+    if cmd == "add":
+        cmd_add()
+    elif cmd == "search":
+        cmd_search()
+    elif cmd == "clean":
+        cmd_clean()
+    else:
+        print(f"Unknown command: {cmd}")
+        print_help()
 
 
 if __name__ == "__main__":
