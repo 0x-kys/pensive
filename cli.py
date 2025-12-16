@@ -1,126 +1,184 @@
 import os
-import sys
+from typing import List, Optional
+
+import typer
 
 from db import PensiveDB
 
-DB_PATH = "pensive.db"
+app = typer.Typer(help="PensiveDB — local-first semantic database")
 
-BIG_TEXT = """
-Artificial intelligence is transforming software development. Modern systems can now generate code, review pull requests, and even suggest architectural improvements. Teams that adopt AI tools report faster development cycles and fewer bugs in production. The challenge, however, is integrating these tools responsibly without creating over-reliance.
-
-Cooking at home has seen a resurgence as people look for healthier alternatives to fast food. Simple meals like stir-fries, soups, and roasted vegetables require minimal ingredients but deliver strong nutritional value. Many beginners start with basic knife skills and gradually experiment with herbs, spices, and different cuisines.
-
-Electric vehicles are becoming increasingly popular as battery technology improves and charging networks expand. Companies are pushing for longer ranges and faster charging times. Governments around the world are offering incentives to reduce carbon emissions and accelerate the shift away from fossil fuels.
-
-Traveling to new countries exposes people to unfamiliar cultures and perspectives. Exploring local food, music, and traditions helps visitors build a deeper appreciation for diversity. Many travelers also enjoy documenting their journeys through photography and writing.
-
-Good mental health requires consistent habits such as regular exercise, proper sleep, social interactions, and mindfulness. Small daily practices like journaling or walking outdoors can significantly reduce stress levels. Experts encourage people to treat mental well-being with the same priority as physical health.
-"""
+DEFAULT_DB_PATH = "pensive.db"
 
 
-def split_paragraphs(text: str):
-    return [p.strip() for p in text.strip().split("\n\n") if p.strip()]
+# -------------------------
+# Utility
+# -------------------------
 
 
-def pretty_print_semantic_results(results):
-    print("\nSemantic Search Results:")
-    for i, r in enumerate(results, start=1):
-        print(f"\nResult #{i}")
-        print(f"  ID: {r['id']}")
-        print(f"  Score: {r['score']:.4f}")
-        print(f"  Title: {r['data']['title']}")
-        print(f"  Content (preview): {r['data']['content'][:120]}...")
+def ensure_db_exists(path: str):
+    if not os.path.exists(path):
+        typer.echo("Database not found. Run `pensive init` first.")
+        raise typer.Exit(code=1)
 
 
-def cmd_add():
+def read_file(path: str) -> str:
+    if not os.path.exists(path):
+        typer.echo(f"File not found: {path}")
+        raise typer.Exit(code=1)
+
+    with open(path, "r", encoding="utf-8") as f:
+        return f.read()
+
+
+# -------------------------
+# Commands
+# -------------------------
+
+
+@app.command()
+def init(
+    db_path: str = typer.Option(
+        DEFAULT_DB_PATH,
+        help="Path to create the database",
+    ),
+):
+    """
+    Initialize a new PensiveDB database.
+    """
+    if os.path.exists(db_path):
+        typer.echo("Database already exists.")
+        return
+
     db = PensiveDB(
-        path=DB_PATH,
+        path=db_path,
+        index_mode="faiss_flat",
+    )
+    db.close()
+
+    typer.echo(f"Initialized database at {db_path}")
+
+
+@app.command()
+def add(
+    file: str = typer.Argument(..., help="Path to text file to ingest"),
+    collection: str = typer.Option(
+        "notes",
+        help="Collection name",
+    ),
+    db_path: str = typer.Option(
+        DEFAULT_DB_PATH,
+        help="Path to database file",
+    ),
+):
+    """
+    Add a file to the database.
+    """
+    ensure_db_exists(db_path)
+
+    content = read_file(file)
+
+    db = PensiveDB(
+        path=db_path,
         flush_every=10,
         index_mode="faiss_flat",
     )
 
-    paragraphs = split_paragraphs(BIG_TEXT)
-    print(f"Found {len(paragraphs)} paragraphs.")
-    print("--- INSERTING NOTES ---")
-
-    for idx, para in enumerate(paragraphs, start=1):
-        doc_id = db.insert(
-            "notes",
-            {"title": f"Paragraph {idx}", "content": para},
-        )
-        print(f"Inserted note {idx}: {doc_id}")
+    doc_id = db.insert(
+        collection,
+        {
+            "title": os.path.basename(file),
+            "content": content,
+        },
+    )
 
     db.close()
-    print("\nInsert complete.")
+    typer.echo(f"Inserted document {doc_id} into '{collection}'")
 
 
-def cmd_search():
-    if not os.path.exists(DB_PATH):
-        print("Database not found. Run `add` first.")
-        return
+@app.command()
+def search(
+    query: str = typer.Argument(..., help="Semantic search query"),
+    collection: str = typer.Option(
+        "notes",
+        help="Collection name",
+    ),
+    filter: Optional[List[str]] = typer.Option(
+        None,
+        "--filter",
+        "-f",
+        help="Keyword filter (can be repeated)",
+    ),
+    top_k: int = typer.Option(
+        5,
+        help="Number of results to return",
+    ),
+    db_path: str = typer.Option(
+        DEFAULT_DB_PATH,
+        help="Path to database file",
+    ),
+):
+    """
+    Run a semantic search with optional keyword filters.
+    """
+    ensure_db_exists(db_path)
+
+    filters = None
+    if filter:
+        filters = [
+            {
+                "field": "content",
+                "op": "in",
+                "value": filter,
+            }
+        ]
 
     db = PensiveDB(
-        path=DB_PATH,
+        path=db_path,
         index_mode="faiss_flat",
     )
 
     results = db.query(
-        "notes",
-        filters=[
-            {
-                "field": "content",
-                "op": "in",
-                "value": [
-                    "mental",
-                    "health",
-                ],
-            }
-        ],
-        semantic_query="mindfulness",
-        top_k=3,
+        collection=collection,
+        filters=filters,
+        semantic_query=query,
+        top_k=top_k,
     )
 
-    pretty_print_semantic_results(results)
+    if not results:
+        typer.echo("No results found.")
+        return
+
+    typer.echo("\nSemantic Search Results:")
+    for i, r in enumerate(results, start=1):
+        typer.echo(f"\nResult #{i}")
+        typer.echo(f"  ID: {r['id']}")
+        typer.echo(f"  Score: {r['score']:.4f}")
+        typer.echo(f"  Title: {r['data']['title']}")
+        typer.echo(f"  Content (preview): {r['data']['content'][:120]}...")
 
     db.close()
 
 
-def cmd_clean():
-    if os.path.exists(DB_PATH):
-        os.remove(DB_PATH)
-        print("Database deleted.")
+@app.command()
+def clean(
+    db_path: str = typer.Option(
+        DEFAULT_DB_PATH,
+        help="Path to database file",
+    ),
+):
+    """
+    Delete the database.
+    """
+    if os.path.exists(db_path):
+        os.remove(db_path)
+        typer.echo("Database deleted.")
     else:
-        print("No database found.")
+        typer.echo("No database found.")
 
 
-def print_help():
-    print(
-        """
-Usage:
-  uv run cli.py add     # insert demo documents
-  uv run cli.py search  # run semantic search
-  uv run cli.py clean   # delete database
-"""
-    )
-
-
-def main():
-    if len(sys.argv) < 2:
-        print_help()
-        return
-
-    cmd = sys.argv[1]
-
-    if cmd == "add":
-        cmd_add()
-    elif cmd == "search":
-        cmd_search()
-    elif cmd == "clean":
-        cmd_clean()
-    else:
-        print(f"Unknown command: {cmd}")
-        print_help()
-
+# -------------------------
+# Entry
+# -------------------------
 
 if __name__ == "__main__":
-    main()
+    app()

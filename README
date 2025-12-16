@@ -1,94 +1,31 @@
-# pensive
+# Pensive
 
 a tiny database that stores structured data and unstructured embeddings, with semantic search and hybrid queries
 
-### Core features
+## Core features
 
-- (done) sqlite-backed storage engine for structured documents
-- (done) embedding index with cosine similarity search & FAISS flat index
-- (done) hybrid query execution (structured filters + semantic ranking)
-- (planned) natural-language -> structured query translation using a local mini LLM
-- (planned) fastAPI + websocket with svelte dashboard
-- (planned) plugin system for local data ingestion
+- SQLite-backed storage engine for structured documents
+- embedding index with cosine similarity search
+- optional FAISS flat index for faster vector retrieval
+- hybrid query execution (structured filters + semantic ranking)
+- incremental persistence for efficient local writes
 
-### Examples
+## Installation & Usage
 
-1. matching filters + semantic relevance
+### Requirements
 
-Query:
-```py
-    results = db.query(
-        "notes",
-        filters=[
-            {
-                "field": "content",
-                "op": "in",
-                "value": [
-                    "mental",
-                    "health",
-                ],
-            }
-        ],
-        semantic_query="mindfulness",
-        top_k=3,
-    )
-```
+- Python `uv` (https://docs.astral.sh/uv/)
 
-Result:
-```
-❯ uv run cli.py search
+```bash
+# initialized database
+uv run cli.py init
 
-Semantic Search Results:
+# add a document
+uv run cli.py add notes.txt
 
-Result #1
-  ID: a46e99f5-9a3a-4c81-9c87-523e6abaf92c
-  Score: 0.4057
-  Title: Paragraph 5
-  Content (preview): Good mental health requires consistent habits such as regular exercise, proper sleep, social interactions, and mindfulne...
+# run a semantic search with filters
+uv run cli.py search "something cool to search" --top-k 3 --filter "some-filter-word" --filter "some-filter-word"
 
-Result #2
-  ID: f86e3b31-0a53-4c48-8207-77f4b89c7c72
-  Score: -0.0001
-  Title: Paragraph 2
-  Content (preview): Cooking at home has seen a resurgence as people look for healthier alternatives to fast food. Simple meals like stir-fri...
-```
-
-2. weak semantic match with strong filters
-
-Query:
-```py
-    results = db.query(
-        "notes",
-        filters=[
-            {
-                "field": "content",
-                "op": "in",
-                "value": [
-                    "mental",
-                    "health",
-                ],
-            }
-        ],
-        semantic_query="mindful",
-        top_k=3,
-    )
-```
-
-Result:
-```
-❯ uv run cli.py search
-
-Semantic Search Results:
-
-Result #1
-  ID: a46e99f5-9a3a-4c81-9c87-523e6abaf92c
-  Score: 0.2142
-  Title: Paragraph 5
-  Content (preview): Good mental health requires consistent habits such as regular exercise, proper sleep, social interactions, and mindfulne...
-
-Result #2
-  ID: f86e3b31-0a53-4c48-8207-77f4b89c7c72
-  Score: -0.0178
-  Title: Paragraph 2
-  Content (preview): Cooking at home has seen a resurgence as people look for healthier alternatives to fast food. Simple meals like stir-fri...
+# delete the database
+uv run cli.py clean
 ```
